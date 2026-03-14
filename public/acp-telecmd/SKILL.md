@@ -1,55 +1,66 @@
 ---
 name: acp-telecmd
-description: Orchestrates an ACP Codex agent for spec-driven development, handling code fixes, compilation, and testing based on proposals in an 'openspec' folder.
+description: Orchestrates an ACP Codex agent for spec-driven development, enabling automated code fixes, compilation, and testing based on formal proposals.
 ---
 
-# ACP Spec Workflow
+# ACP Telecommand Skill
 
-您現在是個資深軟體工程師，我有一個專案要委託你：
-這是一個非常清晰且自動化的工作流程，透過將遠端專案掛載到本地並利用 ACP Codex 進行程式碼修正、編譯和測試，直到任務完成。
+This skill outlines the automated workflow for an AI agent (myself) to collaborate with an ACP Codex instance for software development tasks, ensuring a clear and iterative process from proposal to tested implementation.
 
-為了確保 ACP Codex 能夠順利執行您的工作，我已確認以下幾點：
+## Prerequisites & Configuration
 
-1. SSHFS 掛載： 已透過 SSHFS 成功掛載到本地 projects 目錄下，路徑：/home/ubuntu/.openclaw/workspace/projects/synotelecommand-client。
+For successful execution, ensure the following are configured:
 
-2. 編譯指令：
-ssh b.syno "~/build-master-synotelecommand-client.sh"
+1.  **SSHFS Mount:** The remote project directory must be mounted locally via SSHFS.
+    *   **Example Path:** `/home/ubuntu/.openclaw/workspace/projects/synotelecommand-client`
 
-3. 測試指令：
-ssh b.syno "~/test-master-synotelecommand-client.sh"
+2.  **Remote Build Command:** A shell script executable remotely via SSH to compile the project.
+    *   **Example Command:** `ssh b.syno "~/build-master-synotelecommand-client.sh"`
+    *   **Skill Script:** `scripts/build.sh` (Located in this skill's `scripts/` directory)
 
+3.  **Remote Test Command:** A shell script executable remotely via SSH to run project tests.
+    *   **Example Command:** `ssh b.syno "~/test-master-synotelecommand-client.sh"`
+    *   **Skill Script:** `scripts/test.sh` (Located in this skill's `scripts/` directory)
 
-當 ACP Codex 的任務來自該專案的 openspec 資料夾。
+## Workflow Overview (Agent's Perspective)
 
-為了能夠在這個流程中更好地與您協作，我將這樣與您互動：
+Upon receiving a development task (proposal) from the user, I will initiate and manage an ACP Codex session through the following phases:
 
-任務定義 (Proposal)：
-您可以在 openspec 資料夾中創建一個新的提案文件（例如 Markdown 或純文字檔案），裡面詳細描述您希望 ACP Codex 完成的工作。
-您需要告訴我這個提案文件的路徑和名稱。
-我會將這個提案作為 ACP Codex 的任務輸入。
+1.  **Proposal Ingestion:** Read and understand the detailed task proposal provided by the user (typically in an `openspec` file).
+2.  **Codex Session Orchestration:** Spawn and maintain a persistent ACP Codex session, feeding it the proposal and relevant context.
+3.  **Iterative Development Loop:** Continuously monitor Codex's progress, execute necessary build and test commands remotely, and relay feedback between Codex and the user.
+4.  **Completion & Archiving:** Conclude the task upon successful implementation and testing, notifying the user for final review and potential archiving.
 
-審核討論 (review)：
-在 ACP Codex 接收任務並開始工作後，如果它有任何疑問、需要澄清或在實作過程中遇到問題，它會向您發送訊息（透過我）。
-我會將 ACP Codex 的問題或進度回報傳達給您。
-您對 ACP Codex 的回饋或指示，可以透過文字訊息傳達給我，我會轉達給 ACP Codex。
+## Execution Steps (Detailed Agent Workflow)
 
-Codex 實作 (Codex Apply implementation)：
-ACP Codex 將會根據提案和您的回饋，在專案資料夾中進行程式碼修正、編譯和測試，直到達到預期的結果。
-我會持續監控 ACP Codex 的執行狀態和進度，並向您定期回報。
-固化規格歸檔 (Archive)：
-當 ACP Codex 完成任務並通過所有測試後，我會通知您。
-您可以在這個階段審核 ACP Codex 所做的更改。如果確認無誤，您可以將相關的 openspec 文件或程式碼歸檔。
+When directed to process an `openspec` task (Proposal), I will execute the following sequence using OpenClaw's tools:
 
-### 啟動與管理 ACP Codex (Agent Workflow)
+1.  **Receive Proposal Path:** Obtain the path to the `openspec` proposal file from the user.
 
-當您向我提供 `openspec` 中的任務（Proposal）後，我將執行以下步驟：
+2.  **Read Proposal:**
+    *   Use `read(path=<proposal_file_path>)` to load the proposal content.
+    *   Parse and internalize the task requirements.
 
-1.  **讀取提案：** 我會讀取您提供的提案文件，理解任務內容。
-2.  **啟動 ACP Codex：** 我將使用 `sessions_spawn` 工具啟動一個 ACP Codex 會話。我將設定 `runtime="acp"`，`agentId="openai-codex/gpt-5.3-codex"`，並將專案的根目錄 `/home/ubuntu/.openclaw/workspace/projects/synotelecommand-client` 設定為 ACP Codex 的工作目錄。ACP Codex 的初始任務將來自提案內容。
-3.  **持續監控與互動：**
-    *   我會持續監控 ACP Codex 的輸出，檢查其進度、問題或需要您輸入的訊息。
-    *   **執行編譯：** 如果 ACP Codex 需要編譯程式碼，我將執行 `skills/public/acp-spec-workflow/scripts/build.sh` 腳本。
-    *   **執行測試：** 如果 ACP Codex 需要運行測試，我將執行 `skills/public/acp-spec-workflow/scripts/test.sh` 腳本。
-    *   我會將編譯和測試的結果傳達給 ACP Codex。
-    *   我會將 ACP Codex 的問題或狀態回報給您，並將您的指示傳達給它。
-4.  **任務完成：** 當 ACP Codex 完成任務並通過所有檢查時，我將通知您。
+3.  **Spawn ACP Codex Session:**
+    *   Use `sessions_spawn(runtime="acp", agentId=<your_acp_codex_agent_id>, mode="session", task=<initial_task_prompt>, cwd=<project_root_directory>)`
+        *   `<your_acp_codex_agent_id>`: Replace with the actual ACP Codex agent ID configured in OpenClaw (e.g., `openai-codex/gpt-5.3-codex`).
+        *   `<initial_task_prompt>`: A prompt constructed from the proposal content, guiding Codex on its initial task.
+        *   `<project_root_directory>`: The mounted project path (e.g., `/home/ubuntu/.openclaw/workspace/projects/synotelecommand-client`).
+    *   Capture the `sessionId` for subsequent interaction.
+
+4.  **Orchestration Loop (Monitor, Build, Test, Relay):**
+    *   Continuously poll the ACP Codex session using `sessions_history(sessionKey=<codex_session_id>)` or `process(action="poll")` to monitor its output and status.
+    *   **Codex Output Analysis:** Interpret Codex's messages to identify requests for compilation, testing, clarification, or status updates.
+    *   **Execute Build:** If Codex indicates a need to build (e.g., "build" or "compile"), execute:
+        *   `exec(command="skills/public/acp-telecmd/scripts/build.sh")`
+        *   Relay the `build.sh` output back to the Codex session via `sessions_send(sessionKey=<codex_session_id>, message=<build_output>)`.
+    *   **Execute Test:** If Codex indicates a need to test (e.g., "test" or "run tests"), execute:
+        *   `exec(command="skills/public/acp-telecmd/scripts/test.sh")`
+        *   Relay the `test.sh` output back to the Codex session via `sessions_send(sessionKey=<codex_session_id>, message=<test_output>)`.
+    *   **Relay User Feedback:** If the user provides feedback or new instructions for Codex, relay these messages using `sessions_send(sessionKey=<codex_session_id>, message=<user_message>)`.
+    *   **Report to User:** Periodically (or upon significant events) report Codex's progress, questions, or implementation status to the user using `message(action="send", message=<status_update>)`.
+
+5.  **Task Completion:**
+    *   When Codex signals task completion and all tests pass, or if directed by the user, mark the task as complete.
+    *   Notify the user of successful completion and the changes made by Codex.
+    *   Offer to assist with archiving the `openspec` or reviewing the implemented changes.
