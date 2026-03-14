@@ -1,0 +1,1 @@
+ssh b.syno "~/test-master-synotelecommand-client.sh"

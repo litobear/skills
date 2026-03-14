@@ -1,0 +1,1 @@
+ssh b.syno "~/build-master-synotelecommand-client.sh"
