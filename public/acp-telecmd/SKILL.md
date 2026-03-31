@@ -1,26 +1,11 @@
 ---
 name: acp-telecmd
-description: Orchestrates an ACP Codex agent for spec-driven development, enabling automated code fixes, compilation, and testing based on formal proposals.
+description: Orchestrates an ACP Codex agent to manage and execute project-native build and test scripts for spec-driven development, enabling automated code fixes, compilation, and testing based on formal proposals.
 ---
 
 # ACP Telecommand Skill
 
 This skill outlines the automated workflow for an AI agent (myself) to collaborate with an ACP Codex instance for software development tasks, ensuring a clear and iterative process from proposal to tested implementation.
-
-## Prerequisites & Configuration
-
-For successful execution, ensure the following are configured:
-
-1.  **SSHFS Mount:** The remote project directory must be mounted locally via SSHFS.
-    *   **Example Path:** `/home/ubuntu/.openclaw/workspace/projects/synotelecommand-client`
-
-2.  **Remote Build Command:** A shell script executable remotely via SSH to compile the project.
-    *   **Example Command:** `ssh b.syno "~/build-master-synotelecommand-client.sh"`
-    *   **Skill Script:** `scripts/build.sh` (Located in this skill's `scripts/` directory)
-
-3.  **Remote Test Command:** A shell script executable remotely via SSH to run project tests.
-    *   **Example Command:** `ssh b.syno "~/test-master-synotelecommand-client.sh"`
-    *   **Skill Script:** `scripts/test.sh` (Located in this skill's `scripts/` directory)
 
 ## Workflow Overview (Agent's Perspective)
 
@@ -28,12 +13,12 @@ Upon receiving a development task (proposal) from the user, I will initiate and 
 
 1.  **Proposal Ingestion:** Read and understand the detailed task proposal provided by the user (typically in an `openspec` file).
 2.  **Codex Session Orchestration:** Spawn and maintain a persistent ACP Codex session, feeding it the proposal and relevant context.
-3.  **Iterative Development Loop:** Continuously monitor Codex's progress, execute necessary build and test commands remotely, and relay feedback between Codex and the user.
+3.  **Iterative Development Loop:** Continuously monitor Codex's progress, and when build/test is required, I will instruct Codex to execute the project's own native build/test scripts and relay feedback between Codex and the user.
 4.  **Completion & Archiving:** Conclude the task upon successful implementation and testing, notifying the user for final review and potential archiving.
 
 ## Execution Steps (Detailed Agent Workflow)
 
-When directed to process an `openspec` task (Proposal), I will execute the following sequence using OpenClaw's tools:
+When directed to process an `openspec` task (Proposal), I will execute the following sequence using OpenClaw's tools and openspec skill:
 
 1.  **Receive Proposal Path:** Obtain the path to the `openspec` proposal file from the user.
 
@@ -51,12 +36,12 @@ When directed to process an `openspec` task (Proposal), I will execute the follo
 4.  **Orchestration Loop (Monitor, Build, Test, Relay):**
     *   Continuously poll the ACP Codex session using `sessions_history(sessionKey=<codex_session_id>)` or `process(action="poll")` to monitor its output and status.
     *   **Codex Output Analysis:** Interpret Codex's messages to identify requests for compilation, testing, clarification, or status updates.
-    *   **Execute Build:** If Codex indicates a need to build (e.g., "build" or "compile"), execute:
-        *   `exec(command="skills/public/acp-telecmd/scripts/build.sh")`
-        *   Relay the `build.sh` output back to the Codex session via `sessions_send(sessionKey=<codex_session_id>, message=<build_output>)`.
-    *   **Execute Test:** If Codex indicates a need to test (e.g., "test" or "run tests"), execute:
-        *   `exec(command="skills/public/acp-telecmd/scripts/test.sh")`
-        *   Relay the `test.sh` output back to the Codex session via `sessions_send(sessionKey=<codex_session_id>, message=<test_output>)`.
+    *   **Execute Build:** If Codex indicates a need to build (e.g., “build” or “compile”), instruct Codex to execute the project's native build script:
+        *   Instruct Codex to run `./testfiles/build.sh` (via `acpx` prompt, orchestrated by my `build.sh` wrapper).
+        *   Relay the output back to the Codex session via `sessions_send(sessionKey=<codex_session_id>, message=<build_output>)`.
+    *   **Execute Test:** If Codex indicates a need to test (e.g., “test” or “run tests”), instruct Codex to execute the project's native test script:
+        *   Instruct Codex to run `./testfiles/test.sh` (via `acpx` prompt, orchestrated by my `test.sh` wrapper).
+        *   Relay the output back to the Codex session via `sessions_send(sessionKey=<codex_session_id>, message=<test_output>)`.
     *   **Relay User Feedback:** If the user provides feedback or new instructions for Codex, relay these messages using `sessions_send(sessionKey=<codex_session_id>, message=<user_message>)`.
     *   **Report to User:** Periodically (or upon significant events) report Codex's progress, questions, or implementation status to the user using `message(action="send", message=<status_update>)`.
 

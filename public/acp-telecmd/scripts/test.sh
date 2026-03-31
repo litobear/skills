@@ -1,1 +1,16 @@
-ssh b.syno "~/test-master-synotelecommand-client.sh"
+#!/bin/bash
+
+# This script orchestrates acpx to run the project's native test.sh
+# It should be called from the OpenClaw environment.
+
+# Ensure the correct working directory for acpx
+CWD="/home/ubuntu/.openclaw/workspace/projects/synotelecommand-client"
+MODEL="openai-codex/gpt-5.3-codex"
+TEST_SCRIPT="./testfiles/test.sh"
+
+npx acpx \
+  --approve-all \
+  --allowed-tools shell.exec \
+  --cwd "$CWD" \
+  --model "$MODEL" \
+  codex prompt "\nRun and show the result of the project test script:\n$TEST_SCRIPT\n"
