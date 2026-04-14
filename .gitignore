@@ -1,0 +1,8 @@
+# Common local runtime environments
+.venv/
+venv/
+
+# Node.js dependencies and package manager stores
+node_modules/
+.npm/
+.pnpm-store/

@@ -1,39 +1,99 @@
 #!/usr/bin/env python3
-import os, sys, json, urllib.request, urllib.parse, argparse
+import argparse
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+
 from google.auth import load_credentials_from_file
-from google.auth.transport.requests import Request # Added import
+from google.auth.transport.requests import Request
 
 BASE_URL = 'https://www.googleapis.com/calendar/v3'
-SCOPES = ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar'] # Defined scopes
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/calendar',
+]
 
-def get_access_token():
-    # Try service account first if GOOGLE_APPLICATION_CREDENTIALS is set
+
+def get_service_account_token():
     sa_credential_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    if sa_credential_path and os.path.exists(sa_credential_path):
-        try:
-            # Load credentials from the service account key file with specified scopes
-            creds, _ = load_credentials_from_file(sa_credential_path, scopes=SCOPES)
-            # Refresh credentials to get a fresh access token
-            creds.refresh(Request())
-            return creds.token
-        except Exception as e:
-            sys.stderr.write(f'Warning: Service account token refresh failed: {e}\n')
-            # Fall through to GOOGLE_ACCESS_TOKEN if service account fails or is not correctly configured
-            pass
+    if not sa_credential_path:
+        return None
+    if not os.path.exists(sa_credential_path):
+        sys.stderr.write(
+            f'Warning: GOOGLE_APPLICATION_CREDENTIALS file not found: {sa_credential_path}\n'
+        )
+        return None
+    try:
+        creds, _ = load_credentials_from_file(sa_credential_path, scopes=SCOPES)
+        creds.refresh(Request())
+        return creds.token
+    except Exception as exc:
+        sys.stderr.write(f'Warning: service account token refresh failed: {exc}\n')
+        return None
 
-    # Fallback to direct GOOGLE_ACCESS_TOKEN (for user OAuth flow)
-    token = os.getenv('GOOGLE_ACCESS_TOKEN')
+
+def get_oauth_refresh_token_access_token():
+    client_id = os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+    refresh_token = os.getenv('GOOGLE_REFRESH_TOKEN')
+    if not all([client_id, client_secret, refresh_token]):
+        return None
+
+    data = urllib.parse.urlencode(
+        {
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'refresh_token': refresh_token,
+            'grant_type': 'refresh_token',
+        }
+    ).encode()
+    req = urllib.request.Request('https://oauth2.googleapis.com/token', data=data, method='POST')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    try:
+        with urllib.request.urlopen(req) as resp:
+            payload = json.load(resp)
+    except urllib.error.HTTPError as exc:
+        sys.stderr.write(f'Warning: OAuth refresh failed with HTTP {exc.code}: {exc.read().decode()}\n')
+        return None
+    except urllib.error.URLError as exc:
+        sys.stderr.write(f'Warning: OAuth refresh failed: {exc}\n')
+        return None
+
+    token = payload.get('access_token')
     if not token:
-        sys.stderr.write('Error: GOOGLE_ACCESS_TOKEN env var not set and service account not configured or failed.\n')
-        sys.exit(1)
+        sys.stderr.write('Warning: OAuth refresh response did not include access_token\n')
+        return None
     return token
 
+
+def get_access_token():
+    token = get_service_account_token()
+    if token:
+        return token
+
+    token = get_oauth_refresh_token_access_token()
+    if token:
+        return token
+
+    token = os.getenv('GOOGLE_ACCESS_TOKEN')
+    if token:
+        return token
+
+    sys.stderr.write(
+        'Error: no authentication configured. Set GOOGLE_APPLICATION_CREDENTIALS, '
+        'or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN, '
+        'or GOOGLE_ACCESS_TOKEN.\n'
+    )
+    sys.exit(1)
+
 def get_calendar_ids():
-    # Support multiple IDs via env var (comma‑separated) or single ID fallback
+    # Support multiple IDs via env var (comma-separated) or single ID fallback.
     ids = os.getenv('GOOGLE_CALENDAR_IDS')
     if ids:
         return [c.strip() for c in ids.split(',') if c.strip()]
-    # fallback to single ID for backward compatibility
+    # Fallback to single ID for backward compatibility.
     single = os.getenv('GOOGLE_CALENDAR_ID')
     return [single] if single else []
 
@@ -45,9 +105,9 @@ def request(method, url, data=None):
         req.add_header('Content-Type', 'application/json')
     try:
         with urllib.request.urlopen(req) as resp:
-            # Handle 204 No Content for DELETE operations
+            # Handle 204 No Content for DELETE operations.
             if resp.getcode() == 204:
-                return {} # Return an empty dictionary for successful DELETE
+                return {}
             return json.load(resp)
     except urllib.error.HTTPError as e:
         sys.stderr.write(f'HTTP error {e.code}: {e.read().decode()}\n')
@@ -73,10 +133,9 @@ def list_events(args):
         url = f"{BASE_URL}/calendars/{urllib.parse.quote(cal_id)}/events?{urllib.parse.urlencode(params)}"
         resp = request('GET', url)
         results[cal_id] = resp.get('items', [])
-    # Output a combined JSON mapping calendar ID -> list of events
     print(json.dumps(results, indent=2))
 
-# The other commands (add, update, delete) remain single‑calendar for simplicity
+
 def add_event(args):
     parser = argparse.ArgumentParser()
     parser.add_argument('--title', required=True)
